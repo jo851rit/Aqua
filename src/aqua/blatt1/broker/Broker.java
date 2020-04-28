@@ -8,6 +8,7 @@ import aqua.blatt1.common.msgtypes.RegisterResponse;
 import messaging.Endpoint;
 import messaging.Message;
 
+import javax.swing.*;
 import java.net.InetSocketAddress;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -27,6 +28,7 @@ public class Broker {
     int NUMTHREADS = 5;
     ExecutorService executor;
     ReadWriteLock lock = new ReentrantReadWriteLock();
+    boolean stopRequested = false;
 
     public Broker() {
         endpoint = new Endpoint(4711);
@@ -37,11 +39,15 @@ public class Broker {
     private class BrokerTask {
         public void brokerTask(Message msg) {
             if (msg.getPayload() instanceof RegisterRequest) {
-                synchronized (clientCollection) {register(msg);}
+                synchronized (clientCollection) {
+                    register(msg);
+                }
             }
 
             if (msg.getPayload() instanceof DeregisterRequest) {
-                synchronized (clientCollection) {deregister(msg);}
+                synchronized (clientCollection) {
+                    deregister(msg);
+                }
             }
 
             if (msg.getPayload() instanceof HandoffRequest) {
@@ -53,7 +59,14 @@ public class Broker {
     }
 
     public void broker() {
-        while (true) {
+        executor.execute(() -> {
+
+            JFrame f = new JFrame();
+            JOptionPane.showMessageDialog(f, "Press OK button to stop server");
+            stopRequested = true;
+
+        });
+        while (!stopRequested) {
             Message msg = endpoint.blockingReceive();
             BrokerTask brokerTask = new BrokerTask();
             executor.execute(() -> brokerTask.brokerTask(msg));
