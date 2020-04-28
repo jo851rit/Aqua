@@ -9,6 +9,11 @@ import messaging.Endpoint;
 import messaging.Message;
 
 import java.net.InetSocketAddress;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class Broker {
     public static void main(String[] args) {
@@ -19,27 +24,39 @@ public class Broker {
     Endpoint endpoint;
     ClientCollection clientCollection;
     int counter = 0;
+    int NUMTHREADS = 5;
+    ExecutorService executor;
+    ReadWriteLock lock = new ReentrantReadWriteLock();
 
     public Broker() {
         endpoint = new Endpoint(4711);
         clientCollection = new ClientCollection();
+        executor = Executors.newFixedThreadPool(NUMTHREADS);
+    }
+
+    private class BrokerTask {
+        public void brokerTask(Message msg) {
+            if (msg.getPayload() instanceof RegisterRequest) {
+                synchronized (clientCollection) {register(msg);}
+            }
+
+            if (msg.getPayload() instanceof DeregisterRequest) {
+                synchronized (clientCollection) {deregister(msg);}
+            }
+
+            if (msg.getPayload() instanceof HandoffRequest) {
+                lock.writeLock().lock();
+                handoffFish(msg);
+                lock.writeLock().unlock();
+            }
+        }
     }
 
     public void broker() {
         while (true) {
             Message msg = endpoint.blockingReceive();
-
-            if (msg.getPayload() instanceof RegisterRequest) {
-                register(msg);
-            }
-
-            if (msg.getPayload() instanceof DeregisterRequest) {
-                deregister(msg);
-            }
-
-            if (msg.getPayload() instanceof HandoffRequest) {
-                handoffFish(msg);
-            }
+            BrokerTask brokerTask = new BrokerTask();
+            executor.execute(() -> brokerTask.brokerTask(msg));
         }
     }
 
