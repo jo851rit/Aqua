@@ -10,7 +10,6 @@ import messaging.Message;
 
 import javax.swing.*;
 import java.net.InetSocketAddress;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -55,14 +54,17 @@ public class Broker {
                 handoffFish(msg);
                 lock.writeLock().unlock();
             }
+
+            if (msg.getPayload() instanceof PoisonPill){
+                System.exit(0);
+            }
         }
     }
 
     public void broker() {
         executor.execute(() -> {
 
-            JFrame f = new JFrame();
-            JOptionPane.showMessageDialog(f, "Press OK button to stop server");
+            JOptionPane.showMessageDialog(null, "Press OK button to stop server");
             stopRequested = true;
 
         });
