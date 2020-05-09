@@ -1,10 +1,7 @@
 package aqua.blatt1.broker;
 
 import aqua.blatt1.common.Direction;
-import aqua.blatt1.common.msgtypes.DeregisterRequest;
-import aqua.blatt1.common.msgtypes.HandoffRequest;
-import aqua.blatt1.common.msgtypes.RegisterRequest;
-import aqua.blatt1.common.msgtypes.RegisterResponse;
+import aqua.blatt1.common.msgtypes.*;
 import messaging.Endpoint;
 import messaging.Message;
 
@@ -80,13 +77,37 @@ public class Broker {
         counter++;
 //      add tank to ClientCollection
         clientCollection.add(id, msg.getSender());
+
+        InetSocketAddress leftNeighbor = (InetSocketAddress) clientCollection.getLeftNeighorOf(clientCollection.indexOf(id));
+        InetSocketAddress rightNeighbor = (InetSocketAddress) clientCollection.getRightNeighorOf(clientCollection.indexOf(id));
+
 //      send message
         endpoint.send(msg.getSender(), new RegisterResponse(id));
+        endpoint.send(msg.getSender(), new NeighborUpdate(leftNeighbor, rightNeighbor));
     }
 
     public void deregister(Message msg) {
+        String removeId = ((DeregisterRequest) msg.getPayload()).getId();
+
+        InetSocketAddress leftNeighborAddress = (InetSocketAddress) clientCollection.getLeftNeighorOf(clientCollection.indexOf(removeId));
+        InetSocketAddress rightNeighborAddress = (InetSocketAddress) clientCollection.getRightNeighorOf(clientCollection.indexOf(removeId));
+
+        int leftNeighborIndex = clientCollection.indexOf(clientCollection.getLeftNeighorOf(clientCollection.indexOf(removeId)));
+        int rightNeighborIndex = clientCollection.indexOf(clientCollection.getRightNeighorOf(clientCollection.indexOf(removeId)));
+
+        InetSocketAddress leftOfLeftNeighbor = (InetSocketAddress) clientCollection.getLeftNeighorOf(leftNeighborIndex);
+        InetSocketAddress rightOfRightNeighbor = (InetSocketAddress) clientCollection.getRightNeighorOf(rightNeighborIndex);
+
+//        System.out.println("leftNeighborAddress :" + leftNeighborAddress );
+//        System.out.println("rightNeighborAddress :" + rightNeighborAddress );
+//        System.out.println("leftOfLeftNeighbor :" + leftOfLeftNeighbor );
+//        System.out.println("rightOfRightNeighbor :" + rightOfRightNeighbor );
+
 //      remove tank from list
-        clientCollection.remove(clientCollection.indexOf(((DeregisterRequest) msg.getPayload()).getId()));
+        clientCollection.remove(clientCollection.indexOf(removeId));
+
+        endpoint.send(leftNeighborAddress, new NeighborUpdate(leftOfLeftNeighbor, rightNeighborAddress));
+        endpoint.send(rightNeighborAddress, new NeighborUpdate(leftNeighborAddress, rightOfRightNeighbor));
     }
 
     public void handoffFish(Message msg) {
