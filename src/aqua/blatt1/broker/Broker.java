@@ -73,6 +73,7 @@ public class Broker {
             BrokerTask brokerTask = new BrokerTask();
             executor.execute(() -> brokerTask.brokerTask(msg));
         }
+        executor.shutdown();
     }
 
     public void register(Message msg) {
