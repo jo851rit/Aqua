@@ -24,7 +24,7 @@ public class Broker {
     int NUMTHREADS = 5;
     ExecutorService executor;
     ReadWriteLock lock = new ReentrantReadWriteLock();
-    boolean stopRequested = false;
+    volatile boolean stopRequested = false;
 
     public Broker() {
         endpoint = new Endpoint(4711);
@@ -70,6 +70,7 @@ public class Broker {
             BrokerTask brokerTask = new BrokerTask();
             executor.execute(() -> brokerTask.brokerTask(msg));
         }
+        executor.shutdown();
     }
 
     public void register(Message msg) {
