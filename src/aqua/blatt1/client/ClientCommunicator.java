@@ -10,71 +10,75 @@ import aqua.blatt1.common.FishModel;
 import aqua.blatt1.common.Properties;
 
 public class ClientCommunicator {
-	private final Endpoint endpoint;
+    private final Endpoint endpoint;
 
-	public ClientCommunicator() {
-		endpoint = new Endpoint();
-	}
+    public ClientCommunicator() {
+        endpoint = new Endpoint();
+    }
 
-	public class ClientForwarder {
-		private final InetSocketAddress broker;
+    public class ClientForwarder {
+        private final InetSocketAddress broker;
 
-		private ClientForwarder() {
-			this.broker = new InetSocketAddress(Properties.HOST, Properties.PORT);
-		}
+        private ClientForwarder() {
+            this.broker = new InetSocketAddress(Properties.HOST, Properties.PORT);
+        }
 
-		public void register() {
-			endpoint.send(broker, new RegisterRequest());
-		}
+        public void register() {
+            endpoint.send(broker, new RegisterRequest());
+        }
 
-		public void deregister(String id) {
-			endpoint.send(broker, new DeregisterRequest(id));
-		}
+        public void deregister(String id) {
+            endpoint.send(broker, new DeregisterRequest(id));
+        }
 
-		public void handOff(FishModel fish) {
-			endpoint.send(broker, new HandoffRequest(fish));
+        public void handOff(FishModel fish, InetSocketAddress leftNeighbor, InetSocketAddress rightNeighbor) {
+            Direction direction = fish.getDirection();
+            InetSocketAddress receiverAddress;
 
-//			TODO
-//			Andern Sie die Klasse Der ClientCommunicator.ClientForwarder so, dass beim
-//			Hand-Off Fische direkt an die richtigen Nachbarn geschickt werden.
+            if (direction == Direction.LEFT) {
+                receiverAddress = leftNeighbor;
+            } else {
+                receiverAddress = rightNeighbor;
+            }
 
-		}
-	}
+            endpoint.send(receiverAddress, new HandoffRequest(fish));
+        }
 
-	public class ClientReceiver extends Thread {
-		private final TankModel tankModel;
+    }
 
-		private ClientReceiver(TankModel tankModel) {
-			this.tankModel = tankModel;
-		}
+    public class ClientReceiver extends Thread {
+        private final TankModel tankModel;
 
-		@Override
-		public void run() {
-			while (!isInterrupted()) {
-				Message msg = endpoint.blockingReceive();
+        private ClientReceiver(TankModel tankModel) {
+            this.tankModel = tankModel;
+        }
 
-				if (msg.getPayload() instanceof RegisterResponse)
-					tankModel.onRegistration(((RegisterResponse) msg.getPayload()).getId());
+        @Override
+        public void run() {
+            while (!isInterrupted()) {
+                Message msg = endpoint.blockingReceive();
 
-				if (msg.getPayload() instanceof HandoffRequest)
-					tankModel.receiveFish(((HandoffRequest) msg.getPayload()).getFish());
+                if (msg.getPayload() instanceof RegisterResponse)
+                    tankModel.onRegistration(((RegisterResponse) msg.getPayload()).getId());
 
-				if (msg.getPayload() instanceof NeighborUpdate) {
-					tankModel.leftNeighbor = ((NeighborUpdate) msg.getPayload()).getAddressLeft();
-					tankModel.rightNeighbor = ((NeighborUpdate) msg.getPayload()).getAddressRight();
-				}
+                if (msg.getPayload() instanceof HandoffRequest)
+                    tankModel.receiveFish(((HandoffRequest) msg.getPayload()).getFish());
 
-			}
-			System.out.println("Receiver stopped.");
-		}
-	}
+                if (msg.getPayload() instanceof NeighborUpdate) {
+                    tankModel.updateNeighbors(((NeighborUpdate) msg.getPayload()).getAddressLeft(), ((NeighborUpdate) msg.getPayload()).getAddressRight());
+                }
 
-	public ClientForwarder newClientForwarder() {
-		return new ClientForwarder();
-	}
+            }
+            System.out.println("Receiver stopped.");
+        }
+    }
 
-	public ClientReceiver newClientReceiver(TankModel tankModel) {
-		return new ClientReceiver(tankModel);
-	}
+    public ClientForwarder newClientForwarder() {
+        return new ClientForwarder();
+    }
+
+    public ClientReceiver newClientReceiver(TankModel tankModel) {
+        return new ClientReceiver(tankModel);
+    }
 
 }

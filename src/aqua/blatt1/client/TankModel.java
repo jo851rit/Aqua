@@ -71,7 +71,7 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 			fish.update();
 
 			if (fish.hitsEdge())
-				forwarder.handOff(fish);
+				forwarder.handOff(fish, leftNeighbor, rightNeighbor);
 
 			if (fish.disappears())
 				it.remove();
@@ -95,6 +95,10 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 		} catch (InterruptedException consumed) {
 			// allow method to terminate
 		}
+	}
+	public void updateNeighbors(InetSocketAddress leftNeighbor, InetSocketAddress rightNeighbor) {
+		this.leftNeighbor = leftNeighbor;
+		this.rightNeighbor = rightNeighbor;
 	}
 
 	public synchronized void finish() {

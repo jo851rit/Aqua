@@ -76,15 +76,27 @@ public class Broker {
     public void register(Message msg) {
         String id = "tank" + counter;
         counter++;
+        InetSocketAddress newTankAddress = msg.getSender();
+
 //      add tank to ClientCollection
-        clientCollection.add(id, msg.getSender());
+        clientCollection.add(id, newTankAddress);
+        int newTankAddressIndex = clientCollection.indexOf(newTankAddress);
+        InetSocketAddress leftNeighborAddress = (InetSocketAddress) clientCollection.getLeftNeighorOf(newTankAddressIndex);
+        InetSocketAddress rightNeighborAddress = (InetSocketAddress) clientCollection.getRightNeighorOf(newTankAddressIndex);
 
-        InetSocketAddress leftNeighbor = (InetSocketAddress) clientCollection.getLeftNeighorOf(clientCollection.indexOf(id));
-        InetSocketAddress rightNeighbor = (InetSocketAddress) clientCollection.getRightNeighorOf(clientCollection.indexOf(id));
+        InetSocketAddress leftOfLeftNeighbor = (InetSocketAddress) clientCollection.getLeftNeighorOf(clientCollection.indexOf(leftNeighborAddress));
+        InetSocketAddress rightOfRightNeighbor = (InetSocketAddress) clientCollection.getRightNeighorOf(clientCollection.indexOf(rightNeighborAddress));
 
-//      send message
-        endpoint.send(msg.getSender(), new RegisterResponse(id));
-        endpoint.send(msg.getSender(), new NeighborUpdate(leftNeighbor, rightNeighbor));
+//      send messages
+        if (clientCollection.size() == 1) {
+            endpoint.send(newTankAddress, new NeighborUpdate(newTankAddress, newTankAddress));
+        } else {
+            endpoint.send(newTankAddress, new NeighborUpdate(leftNeighborAddress, rightNeighborAddress));
+            endpoint.send(leftNeighborAddress, new NeighborUpdate(leftOfLeftNeighbor, newTankAddress));
+            endpoint.send(rightNeighborAddress, new NeighborUpdate(newTankAddress, rightOfRightNeighbor));
+        }
+
+        endpoint.send(newTankAddress, new RegisterResponse(id));
     }
 
     public void deregister(Message msg) {
@@ -99,16 +111,12 @@ public class Broker {
         InetSocketAddress leftOfLeftNeighbor = (InetSocketAddress) clientCollection.getLeftNeighorOf(leftNeighborIndex);
         InetSocketAddress rightOfRightNeighbor = (InetSocketAddress) clientCollection.getRightNeighorOf(rightNeighborIndex);
 
-//        System.out.println("leftNeighborAddress :" + leftNeighborAddress );
-//        System.out.println("rightNeighborAddress :" + rightNeighborAddress );
-//        System.out.println("leftOfLeftNeighbor :" + leftOfLeftNeighbor );
-//        System.out.println("rightOfRightNeighbor :" + rightOfRightNeighbor );
-
-//      remove tank from list
-        clientCollection.remove(clientCollection.indexOf(removeId));
 
         endpoint.send(leftNeighborAddress, new NeighborUpdate(leftOfLeftNeighbor, rightNeighborAddress));
         endpoint.send(rightNeighborAddress, new NeighborUpdate(leftNeighborAddress, rightOfRightNeighbor));
+
+//      remove tank from list
+        clientCollection.remove(clientCollection.indexOf(removeId));
     }
 
     public void handoffFish(Message msg) {
