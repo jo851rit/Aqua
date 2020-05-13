@@ -1,16 +1,13 @@
 package aqua.blatt1.client;
 
 import java.net.InetSocketAddress;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.Observable;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import aqua.blatt1.common.Direction;
 import aqua.blatt1.common.FishModel;
+import aqua.blatt1.common.msgtypes.Token;
 
 public class TankModel extends Observable implements Iterable<FishModel> {
 
@@ -24,6 +21,8 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 	protected final ClientCommunicator.ClientForwarder forwarder;
 	public InetSocketAddress rightNeighbor;
 	public InetSocketAddress leftNeighbor;
+	protected boolean boolToken;
+	Timer timer = new Timer();
 
 	public TankModel(ClientCommunicator.ClientForwarder forwarder) {
 		this.fishies = Collections.newSetFromMap(new ConcurrentHashMap<FishModel, Boolean>());
@@ -71,7 +70,7 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 			fish.update();
 
 			if (fish.hitsEdge())
-				forwarder.handOff(fish, leftNeighbor, rightNeighbor);
+				hasToken(fish);
 
 			if (fish.disappears())
 				it.remove();
@@ -96,13 +95,33 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 			// allow method to terminate
 		}
 	}
+
+	public synchronized void finish() {
+		forwarder.deregister(id);
+	}
+
 	public void updateNeighbors(InetSocketAddress leftNeighbor, InetSocketAddress rightNeighbor) {
 		this.leftNeighbor = leftNeighbor;
 		this.rightNeighbor = rightNeighbor;
 	}
 
-	public synchronized void finish() {
-		forwarder.deregister(id);
+	public void receiveToken(Token token) {
+		boolToken = true;
+		timer.schedule(new TimerTask() {
+			@Override
+			public void run() {
+				boolToken = false;
+				forwarder.sendToken(leftNeighbor, token);
+			}
+		}, 2000);
+	}
+
+	public void hasToken(FishModel fish){
+		if (boolToken) {
+			forwarder.handOff(fish, leftNeighbor, rightNeighbor);
+		} else {
+			fish.reverse();
+		}
 	}
 
 }

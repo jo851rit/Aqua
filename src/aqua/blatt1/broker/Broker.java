@@ -90,6 +90,7 @@ public class Broker {
 //      send messages
         if (clientCollection.size() == 1) {
             endpoint.send(newTankAddress, new NeighborUpdate(newTankAddress, newTankAddress));
+            endpoint.send(newTankAddress, new Token());
         } else {
             endpoint.send(newTankAddress, new NeighborUpdate(leftNeighborAddress, rightNeighborAddress));
             endpoint.send(leftNeighborAddress, new NeighborUpdate(leftOfLeftNeighbor, newTankAddress));
