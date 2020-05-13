@@ -8,6 +8,7 @@ import java.util.concurrent.TimeUnit;
 import aqua.blatt1.common.Direction;
 import aqua.blatt1.common.FishModel;
 import aqua.blatt1.common.msgtypes.Token;
+import messaging.Endpoint;
 
 public class TankModel extends Observable implements Iterable<FishModel> {
 
@@ -105,13 +106,13 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 		this.rightNeighbor = rightNeighbor;
 	}
 
-	public void receiveToken(Token token) {
+	public void receiveToken(Token token, Endpoint endpoint) {
 		boolToken = true;
 		timer.schedule(new TimerTask() {
 			@Override
 			public void run() {
 				boolToken = false;
-				forwarder.sendToken(leftNeighbor, token);
+				endpoint.send(leftNeighbor,token);
 			}
 		}, 2000);
 	}
