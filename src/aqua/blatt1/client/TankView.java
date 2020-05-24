@@ -6,8 +6,7 @@ import java.awt.event.MouseEvent;
 import java.util.Observable;
 import java.util.Observer;
 
-import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
+import javax.swing.*;
 
 import aqua.blatt1.common.FishModel;
 
@@ -51,6 +50,12 @@ public class TankView extends JPanel implements Observer {
 		if (!tankModel.boolToken) {
 			drawBorders(g2d);
 		}
+
+		if (tankModel.showDialog) {
+			tankModel.showDialog = false;
+			JOptionPane.showMessageDialog(null, tankModel.globalValue);
+		}
+
 		for (FishModel fishModel : tankModel) {
 			g2d.drawImage(fishView.getImage(fishModel), fishModel.getX(), fishModel.getY(), null);
 			g2d.drawString(fishModel.getId(), fishModel.getX(), fishModel.getY());

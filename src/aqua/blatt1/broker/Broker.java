@@ -112,9 +112,12 @@ public class Broker {
         InetSocketAddress leftOfLeftNeighbor = (InetSocketAddress) clientCollection.getLeftNeighorOf(leftNeighborIndex);
         InetSocketAddress rightOfRightNeighbor = (InetSocketAddress) clientCollection.getRightNeighorOf(rightNeighborIndex);
 
-
-        endpoint.send(leftNeighborAddress, new NeighborUpdate(leftOfLeftNeighbor, rightNeighborAddress));
-        endpoint.send(rightNeighborAddress, new NeighborUpdate(leftNeighborAddress, rightOfRightNeighbor));
+        if (clientCollection.size() == 2) {
+            endpoint.send(leftNeighborAddress, new NeighborUpdate(leftNeighborAddress, leftNeighborAddress));
+        } else {
+            endpoint.send(leftNeighborAddress, new NeighborUpdate(leftOfLeftNeighbor, rightNeighborAddress));
+            endpoint.send(rightNeighborAddress, new NeighborUpdate(leftNeighborAddress, rightOfRightNeighbor));
+        }
 
 //      remove tank from list
         clientCollection.remove(clientCollection.indexOf(removeId));

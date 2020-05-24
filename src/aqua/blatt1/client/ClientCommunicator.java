@@ -48,6 +48,14 @@ public class ClientCommunicator {
             endpoint.send(leftNeighbor,token);
         }
 
+        public void sendSnapshotMarker (InetSocketAddress receiver, SnapshotMarker snapshotMarker) {
+            endpoint.send(receiver, snapshotMarker);
+        }
+
+        public void sendSnapshotCollector(InetSocketAddress receiver, SnapshotCollector snapshotCollector) {
+            endpoint.send(receiver, snapshotCollector);
+        }
+
     }
 
     public class ClientReceiver extends Thread {
@@ -74,6 +82,14 @@ public class ClientCommunicator {
 
                 if (msg.getPayload() instanceof Token) {
                     tankModel.receiveToken((Token) msg.getPayload());
+                }
+
+                if (msg.getPayload() instanceof SnapshotMarker) {
+                    tankModel.receiveSnapshotMarker(msg.getSender(), (SnapshotMarker) msg.getPayload());
+                }
+
+                if (msg.getPayload() instanceof SnapshotCollector) {
+                    tankModel.handleSnapshotCollector((SnapshotCollector) msg.getPayload());
                 }
 
             }
