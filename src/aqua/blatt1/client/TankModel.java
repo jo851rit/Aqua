@@ -11,6 +11,8 @@ import java.util.concurrent.TimeUnit;
 import aqua.blatt1.common.Direction;
 import aqua.blatt1.common.FishModel;
 import aqua.blatt1.common.RecordState;
+import aqua.blatt1.common.ReferenceFish;
+import aqua.blatt1.common.msgtypes.LocationRequest;
 import aqua.blatt1.common.msgtypes.SnapshotCollector;
 import aqua.blatt1.common.msgtypes.SnapshotMarker;
 import aqua.blatt1.common.msgtypes.Token;
@@ -30,12 +32,14 @@ public class TankModel extends Observable implements Iterable<FishModel> {
     protected boolean boolToken;
     Timer timer = new Timer();
     private RecordState recordState = RecordState.IDLE;
+    private ReferenceFish referenceFish = ReferenceFish.HERE;
     public int localState;
     public boolean initiatorReady;
     ExecutorService executor = Executors.newFixedThreadPool(5);
     public volatile boolean hasCollector;
     public int globalValue;
     public volatile boolean showDialog;
+    Set<FishReferenceTank> fishReferenceTankSet = new HashSet<FishReferenceTank>();
 
     public TankModel(ClientCommunicator.ClientForwarder forwarder) {
         this.fishies = Collections.newSetFromMap(new ConcurrentHashMap<FishModel, Boolean>());
@@ -56,6 +60,9 @@ public class TankModel extends Observable implements Iterable<FishModel> {
                     rand.nextBoolean() ? Direction.LEFT : Direction.RIGHT);
 
             fishies.add(fish);
+
+            FishReferenceTank fishReferenceTank = new FishReferenceTank(fish.getId(), ReferenceFish.HERE);
+            fishReferenceTankSet.add(fishReferenceTank);
         }
     }
 
@@ -66,6 +73,7 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 
         fish.setToStart();
         fishies.add(fish);
+        updateFishReferenceTankSet(fish, true);
     }
 
     public String getId() {
@@ -135,6 +143,7 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 
     public void hasToken(FishModel fish) {
         if (boolToken) {
+            updateFishReferenceTankSet(fish, false);
             forwarder.handOff(fish, leftNeighbor, rightNeighbor);
         } else {
             fish.reverse();
@@ -154,11 +163,8 @@ public class TankModel extends Observable implements Iterable<FishModel> {
     public void receiveSnapshotMarker(InetSocketAddress sender, SnapshotMarker snapshotMarker) { //Lamport/Chandy-Algorithmus
 //        falls sich nicht im aufzeichnungsmodus befindet
         if (recordState == RecordState.IDLE) {
-
 //            speichere den Zustand von P
             localState = fishies.size();
-//            TODO
-//            speichere den Zustand von c als leere Liste
 
 //            starte den Aufzeichnungsmodus für alle anderen Eingangskanäle
             if (!leftNeighbor.equals(rightNeighbor)) {
@@ -178,9 +184,6 @@ public class TankModel extends Observable implements Iterable<FishModel> {
                 forwarder.sendSnapshotMarker(rightNeighbor, snapshotMarker);
             }
         } else {
-//            TODO
-//            speichere den Zustand von c als die Liste aller im Aufzeichnungsmodues über c eingegangene Nachrichten
-//            beende Aufzeichnungsmodus für c
             if (!leftNeighbor.equals(rightNeighbor)) {
                 if (sender.equals(leftNeighbor)) {
                     if (recordState == RecordState.BOTH) {
@@ -209,7 +212,6 @@ public class TankModel extends Observable implements Iterable<FishModel> {
         if (initiatorReady) {
             initiatorReady = false;
             globalValue = snapshotCollector.getCounter();
-            System.out.println(globalValue);
             showDialog = true;
         } else {
             hasCollector = true;
@@ -222,6 +224,55 @@ public class TankModel extends Observable implements Iterable<FishModel> {
                     }
                 }
             });
+        }
+    }
+
+    public void locateFishGlobally(String fishId) {
+        ReferenceFish referenceFish = null;
+        for (FishReferenceTank temp : fishReferenceTankSet) {
+            if (temp.getId().equals(fishId)) {
+                referenceFish = temp.getReferenceFish();
+                break;
+            }
+        }
+
+        if (referenceFish == ReferenceFish.HERE) { //Fisch befindet sich im Aquarium
+            locateFishLocally(fishId);
+        } else { //Fisch ist nach links oder rechts rausgeschwommen
+            InetSocketAddress receiver = referenceFish == ReferenceFish.LEFT ? leftNeighbor : rightNeighbor;
+            forwarder.sendLocationRequest(receiver, new LocationRequest(fishId));
+        }
+
+
+    }
+
+    public void locateFishLocally(String fishId) { //fishies durchsuchen und FishModel.toggle()
+        for (FishModel fish : this)
+            if (fish.getId().equals(fishId)) {
+                fish.toggle();
+                break;
+            }
+    }
+
+    public void updateFishReferenceTankSet(FishModel fishModel, boolean getFish) {
+        Direction direction = fishModel.getDirection();
+        boolean foundFishInList = false;
+        for (FishReferenceTank temp : fishReferenceTankSet) {
+            if (fishModel.getId().equals(temp.getId())) {
+                if (getFish) {
+                    temp.setReferenceFish(referenceFish);
+                } else {
+                    ReferenceFish referenceFish = direction == Direction.LEFT ? ReferenceFish.RIGHT : ReferenceFish.RIGHT;
+                    temp.setReferenceFish(referenceFish);
+                }
+                foundFishInList = true;
+                break;
+            }
+        }
+
+        if (!foundFishInList) {
+            FishReferenceTank fishReferenceTank = new FishReferenceTank(fishModel.getId(), ReferenceFish.HERE);
+            fishReferenceTankSet.add(fishReferenceTank);
         }
     }
 }
