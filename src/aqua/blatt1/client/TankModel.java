@@ -206,22 +206,22 @@ public class TankModel extends Observable implements Iterable<FishModel> {
     }
 
     public void handleSnapshotCollector(SnapshotCollector snapshotCollector) {
-        hasCollector = true;
-        executor.execute(() -> {
-            while (hasCollector) {
-                if (recordState == RecordState.IDLE) {
-                    int counter = snapshotCollector.getCounter() + localState;
-                    forwarder.sendSnapshotCollector(leftNeighbor, new SnapshotCollector(counter));
-                    hasCollector = false;
-                }
-            }
-        });
-
         if (initiatorReady) {
             initiatorReady = false;
             globalValue = snapshotCollector.getCounter();
             System.out.println(globalValue);
             showDialog = true;
+        } else {
+            hasCollector = true;
+            executor.execute(() -> {
+                while (hasCollector) {
+                    if (recordState == RecordState.IDLE) {
+                        int counter = snapshotCollector.getCounter() + localState;
+                        forwarder.sendSnapshotCollector(leftNeighbor, new SnapshotCollector(counter));
+                        hasCollector = false;
+                    }
+                }
+            });
         }
     }
 }
