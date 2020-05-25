@@ -32,14 +32,13 @@ public class TankModel extends Observable implements Iterable<FishModel> {
     protected boolean boolToken;
     Timer timer = new Timer();
     private RecordState recordState = RecordState.IDLE;
-    private ReferenceFish referenceFish = ReferenceFish.HERE;
     public int localState;
     public boolean initiatorReady;
     ExecutorService executor = Executors.newFixedThreadPool(5);
     public volatile boolean hasCollector;
     public int globalValue;
     public volatile boolean showDialog;
-    Set<FishReferenceTank> fishReferenceTankSet = new HashSet<FishReferenceTank>();
+    HashMap<String, ReferenceFish> stringReferenceFishHashMap = new HashMap<String, ReferenceFish>();
 
     public TankModel(ClientCommunicator.ClientForwarder forwarder) {
         this.fishies = Collections.newSetFromMap(new ConcurrentHashMap<FishModel, Boolean>());
@@ -60,9 +59,7 @@ public class TankModel extends Observable implements Iterable<FishModel> {
                     rand.nextBoolean() ? Direction.LEFT : Direction.RIGHT);
 
             fishies.add(fish);
-
-            FishReferenceTank fishReferenceTank = new FishReferenceTank(fish.getId(), ReferenceFish.HERE);
-            fishReferenceTankSet.add(fishReferenceTank);
+            stringReferenceFishHashMap.put(fish.getId(), ReferenceFish.HERE);
         }
     }
 
@@ -228,13 +225,7 @@ public class TankModel extends Observable implements Iterable<FishModel> {
     }
 
     public void locateFishGlobally(String fishId) {
-        ReferenceFish referenceFish = null;
-        for (FishReferenceTank temp : fishReferenceTankSet) {
-            if (temp.getId().equals(fishId)) {
-                referenceFish = temp.getReferenceFish();
-                break;
-            }
-        }
+        ReferenceFish referenceFish = stringReferenceFishHashMap.get(fishId);
 
         if (referenceFish == ReferenceFish.HERE) { //Fisch befindet sich im Aquarium
             locateFishLocally(fishId);
@@ -242,8 +233,6 @@ public class TankModel extends Observable implements Iterable<FishModel> {
             InetSocketAddress receiver = referenceFish == ReferenceFish.LEFT ? leftNeighbor : rightNeighbor;
             forwarder.sendLocationRequest(receiver, new LocationRequest(fishId));
         }
-
-
     }
 
     public void locateFishLocally(String fishId) { //fishies durchsuchen und FishModel.toggle()
@@ -254,25 +243,18 @@ public class TankModel extends Observable implements Iterable<FishModel> {
             }
     }
 
-    public void updateFishReferenceTankSet(FishModel fishModel, boolean getFish) {
+    public void updateFishReferenceTankSet(FishModel fishModel, boolean gotFish) {
         Direction direction = fishModel.getDirection();
-        boolean foundFishInList = false;
-        for (FishReferenceTank temp : fishReferenceTankSet) {
-            if (fishModel.getId().equals(temp.getId())) {
-                if (getFish) {
-                    temp.setReferenceFish(referenceFish);
-                } else {
-                    ReferenceFish referenceFish = direction == Direction.LEFT ? ReferenceFish.RIGHT : ReferenceFish.RIGHT;
-                    temp.setReferenceFish(referenceFish);
-                }
-                foundFishInList = true;
-                break;
-            }
-        }
 
-        if (!foundFishInList) {
-            FishReferenceTank fishReferenceTank = new FishReferenceTank(fishModel.getId(), ReferenceFish.HERE);
-            fishReferenceTankSet.add(fishReferenceTank);
+        if (stringReferenceFishHashMap.containsKey(fishModel.getId())) {
+            if (gotFish) {
+                stringReferenceFishHashMap.replace(fishModel.getId(), ReferenceFish.HERE);
+            } else {
+                ReferenceFish referenceFish = direction == Direction.LEFT ? ReferenceFish.LEFT : ReferenceFish.RIGHT;
+                stringReferenceFishHashMap.replace(fishModel.getId(), referenceFish);
+            }
+        } else {
+            stringReferenceFishHashMap.put(fishModel.getId(), ReferenceFish.HERE);
         }
     }
 }
