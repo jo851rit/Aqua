@@ -12,10 +12,8 @@ import aqua.blatt1.common.Direction;
 import aqua.blatt1.common.FishModel;
 import aqua.blatt1.common.RecordState;
 import aqua.blatt1.common.ReferenceFish;
-import aqua.blatt1.common.msgtypes.LocationRequest;
-import aqua.blatt1.common.msgtypes.SnapshotCollector;
-import aqua.blatt1.common.msgtypes.SnapshotMarker;
-import aqua.blatt1.common.msgtypes.Token;
+import aqua.blatt1.common.msgtypes.*;
+import messaging.Message;
 
 public class TankModel extends Observable implements Iterable<FishModel> {
 
@@ -38,7 +36,7 @@ public class TankModel extends Observable implements Iterable<FishModel> {
     public volatile boolean hasCollector;
     public int globalValue;
     public volatile boolean showDialog;
-    HashMap<String, ReferenceFish> stringReferenceFishHashMap = new HashMap<String, ReferenceFish>();
+    HashMap<String, InetSocketAddress> homeAgent = new HashMap<String, InetSocketAddress>();
 
     public TankModel(ClientCommunicator.ClientForwarder forwarder) {
         this.fishies = Collections.newSetFromMap(new ConcurrentHashMap<FishModel, Boolean>());
@@ -59,7 +57,7 @@ public class TankModel extends Observable implements Iterable<FishModel> {
                     rand.nextBoolean() ? Direction.LEFT : Direction.RIGHT);
 
             fishies.add(fish);
-            stringReferenceFishHashMap.put(fish.getId(), ReferenceFish.HERE);
+            homeAgent.put(fish.getId(), null);
         }
     }
 
@@ -70,7 +68,7 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 
         fish.setToStart();
         fishies.add(fish);
-        updateFishReferenceTankSet(fish, true);
+        updateHomeAgent(fish);
     }
 
     public String getId() {
@@ -140,7 +138,6 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 
     public void hasToken(FishModel fish) {
         if (boolToken) {
-            updateFishReferenceTankSet(fish, false);
             forwarder.handOff(fish, leftNeighbor, rightNeighbor);
         } else {
             fish.reverse();
@@ -224,14 +221,21 @@ public class TankModel extends Observable implements Iterable<FishModel> {
         }
     }
 
-    public void locateFishGlobally(String fishId) {
-        ReferenceFish referenceFish = stringReferenceFishHashMap.get(fishId);
+    public void updateHomeAgent(FishModel fish) {
+        if (homeAgent.containsKey(fish.getId())) {
+            homeAgent.replace(fish.getId(), null);
+        } else {
+            forwarder.sendNameResolutionRequest(new NameResolutionRequest(fish.getTankId(), fish.getId()));
+        }
+    }
 
-        if (referenceFish == ReferenceFish.HERE) { //Fisch befindet sich im Aquarium
+    public void locateFishGlobally(String fishId) {
+        InetSocketAddress inetSocketAddress = homeAgent.get(fishId);
+
+        if (inetSocketAddress == null) { //Fisch befindet sich im Aquarium
             locateFishLocally(fishId);
         } else { //Fisch ist nach links oder rechts rausgeschwommen
-            InetSocketAddress receiver = referenceFish == ReferenceFish.LEFT ? leftNeighbor : rightNeighbor;
-            forwarder.sendLocationRequest(receiver, new LocationRequest(fishId));
+            forwarder.sendLocationRequest(inetSocketAddress, new LocationRequest(fishId));
         }
     }
 
@@ -243,18 +247,11 @@ public class TankModel extends Observable implements Iterable<FishModel> {
             }
     }
 
-    public void updateFishReferenceTankSet(FishModel fishModel, boolean gotFish) {
-        Direction direction = fishModel.getDirection();
+    public void handleNameResolutionResponse(InetSocketAddress homeAddress, String fishId, InetSocketAddress sender) {
+        forwarder.sendLocationUpdate(homeAddress, new LocationUpdate(fishId, sender));
+    }
 
-        if (stringReferenceFishHashMap.containsKey(fishModel.getId())) {
-            if (gotFish) {
-                stringReferenceFishHashMap.replace(fishModel.getId(), ReferenceFish.HERE);
-            } else {
-                ReferenceFish referenceFish = direction == Direction.LEFT ? ReferenceFish.LEFT : ReferenceFish.RIGHT;
-                stringReferenceFishHashMap.replace(fishModel.getId(), referenceFish);
-            }
-        } else {
-            stringReferenceFishHashMap.put(fishModel.getId(), ReferenceFish.HERE);
-        }
+    public void handleLocationUpdate(String fishId, InetSocketAddress currentTank) {
+        homeAgent.replace(fishId, currentTank);
     }
 }

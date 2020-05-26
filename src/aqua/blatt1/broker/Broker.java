@@ -55,6 +55,10 @@ public class Broker {
             if (msg.getPayload() instanceof PoisonPill){
                 System.exit(0);
             }
+
+            if (msg.getPayload() instanceof NameResolutionRequest) {
+                handleNameResolutionRequest(msg);
+            }
         }
     }
 
@@ -134,5 +138,15 @@ public class Broker {
         }
 
         endpoint.send(receiverAddress, msg.getPayload());
+    }
+
+    public void handleNameResolutionRequest(Message msg) {
+        String tankId = ((NameResolutionRequest) msg.getPayload()).getTankId();
+        String requestId = ((NameResolutionRequest) msg.getPayload()).getRequestId();
+
+        int indexOf = clientCollection.indexOf(tankId);
+        InetSocketAddress tankAddress = (InetSocketAddress) clientCollection.getClient(indexOf);
+
+        endpoint.send(msg.getSender(), new NameResolutionResponse(tankAddress, requestId, msg.getSender()));
     }
 }
