@@ -7,6 +7,7 @@ import messaging.Message;
 
 import javax.swing.*;
 import java.net.InetSocketAddress;
+import java.util.Date;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -81,9 +82,12 @@ public class Broker {
         String id = "tank" + counter;
         counter++;
         InetSocketAddress newTankAddress = msg.getSender();
-
+//        Wenn sich ein Klient registriert, müssen Sie überprüfen, ob er bereits bekannt
+//        ist oder nicht. Neue Klienten werden mit Zeitstempel eingetragen, für bereits
+//        bekannte Klienten wird lediglich der Zeitstempel aktualisiert
+        Date date = new Date(System.currentTimeMillis());
 //      add tank to ClientCollection
-        clientCollection.add(id, newTankAddress);
+        clientCollection.add(id, newTankAddress, date);
         int newTankAddressIndex = clientCollection.indexOf(newTankAddress);
         InetSocketAddress leftNeighborAddress = (InetSocketAddress) clientCollection.getLeftNeighorOf(newTankAddressIndex);
         InetSocketAddress rightNeighborAddress = (InetSocketAddress) clientCollection.getRightNeighorOf(newTankAddressIndex);
@@ -101,7 +105,7 @@ public class Broker {
             endpoint.send(rightNeighborAddress, new NeighborUpdate(newTankAddress, rightOfRightNeighbor));
         }
 
-        endpoint.send(newTankAddress, new RegisterResponse(id));
+        endpoint.send(newTankAddress, new RegisterResponse(id, 10));
     }
 
     public void deregister(Message msg) {

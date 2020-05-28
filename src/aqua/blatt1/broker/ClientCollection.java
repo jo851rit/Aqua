@@ -1,6 +1,7 @@
 package aqua.blatt1.broker;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /*
@@ -12,10 +13,12 @@ public class ClientCollection<T> {
 	private class Client {
 		final String id;
 		final T client;
+		final Date registerTime;
 
-		Client(String id, T client) {
+		Client(String id, T client, Date registerTime) {
 			this.id = id;
 			this.client = client;
+			this.registerTime = registerTime;
 		}
 	}
 
@@ -25,8 +28,8 @@ public class ClientCollection<T> {
 		clients = new ArrayList<Client>();
 	}
 
-	public ClientCollection<T> add(String id, T client) {
-		clients.add(new Client(id, client));
+	public ClientCollection<T> add(String id, T client, Date registerTime) {
+		clients.add(new Client(id, client, registerTime));
 		return this;
 	}
 
