@@ -5,9 +5,9 @@ import java.io.Serializable;
 @SuppressWarnings("serial")
 public final class RegisterResponse implements Serializable {
 	private final String id;
-	private final int leaseTime;
+	private final long leaseTime;
 
-	public RegisterResponse(String id, int leaseTime) {
+	public RegisterResponse(String id, long leaseTime) {
 		this.id = id;
 		this.leaseTime = leaseTime;
 	}
@@ -16,7 +16,7 @@ public final class RegisterResponse implements Serializable {
 		return id;
 	}
 
-	public int getLeaseTime() {
+	public long getLeaseTime() {
 		return leaseTime;
 	}
 }

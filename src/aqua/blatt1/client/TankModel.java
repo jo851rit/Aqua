@@ -13,7 +13,6 @@ import aqua.blatt1.common.FishModel;
 import aqua.blatt1.common.RecordState;
 import aqua.blatt1.common.ReferenceFish;
 import aqua.blatt1.common.msgtypes.*;
-import messaging.Message;
 
 public class TankModel extends Observable implements Iterable<FishModel> {
 
@@ -43,8 +42,14 @@ public class TankModel extends Observable implements Iterable<FishModel> {
         this.forwarder = forwarder;
     }
 
-    synchronized void onRegistration(String id, int leaseTime) {
-//        TODO timer wird gestartet
+    synchronized void onRegistration(String id, long leaseTime) {
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                forwarder.register();
+            }
+        }, leaseTime - 3000);
+
         this.id = id;
         newFish(WIDTH - FishModel.getXSize(), rand.nextInt(HEIGHT - FishModel.getYSize()));
     }
@@ -254,5 +259,10 @@ public class TankModel extends Observable implements Iterable<FishModel> {
 
     public void handleLocationUpdate(String fishId, InetSocketAddress currentTank) {
         homeAgent.replace(fishId, currentTank);
+    }
+
+    public void handleDeregister() {
+        forwarder.deregister(id);
+        System.exit(0);
     }
 }

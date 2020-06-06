@@ -114,6 +114,10 @@ public class ClientCommunicator {
                 if (msg.getPayload() instanceof LocationUpdate) {
                     tankModel.handleLocationUpdate(((LocationUpdate) msg.getPayload()).getFishId(), ((LocationUpdate) msg.getPayload()).getInetSocketAddress());
                 }
+
+                if (msg.getPayload() instanceof Deregister) {
+                    tankModel.handleDeregister();
+                }
             }
             System.out.println("Receiver stopped.");
         }

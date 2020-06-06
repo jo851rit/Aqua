@@ -8,6 +8,8 @@ import messaging.Message;
 import javax.swing.*;
 import java.net.InetSocketAddress;
 import java.util.Date;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -26,6 +28,8 @@ public class Broker {
     ExecutorService executor;
     ReadWriteLock lock = new ReentrantReadWriteLock();
     volatile boolean stopRequested = false;
+    Timer timer = new Timer();
+    long leaseTime = 10000;
 
     public Broker() {
         endpoint = new Endpoint(4711);
@@ -53,7 +57,7 @@ public class Broker {
                 lock.writeLock().unlock();
             }
 
-            if (msg.getPayload() instanceof PoisonPill){
+            if (msg.getPayload() instanceof PoisonPill) {
                 System.exit(0);
             }
 
@@ -70,6 +74,20 @@ public class Broker {
             stopRequested = true;
 
         });
+
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                for (int i = 0; i < clientCollection.size(); i++) {
+                        long registerDate = clientCollection.getRegisterTime(i);
+                        long currentDate = System.currentTimeMillis();
+                        if (currentDate - registerDate > leaseTime) {
+                            endpoint.send((InetSocketAddress) clientCollection.getClient(i), new Deregister());
+                        }
+                    }
+            }
+        }, 0, 5000);
+
         while (!stopRequested) {
             Message msg = endpoint.blockingReceive();
             BrokerTask brokerTask = new BrokerTask();
@@ -79,33 +97,40 @@ public class Broker {
     }
 
     public void register(Message msg) {
-        String id = "tank" + counter;
-        counter++;
-        InetSocketAddress newTankAddress = msg.getSender();
-//        Wenn sich ein Klient registriert, müssen Sie überprüfen, ob er bereits bekannt
-//        ist oder nicht. Neue Klienten werden mit Zeitstempel eingetragen, für bereits
-//        bekannte Klienten wird lediglich der Zeitstempel aktualisiert
-        Date date = new Date(System.currentTimeMillis());
-//      add tank to ClientCollection
-        clientCollection.add(id, newTankAddress, date);
-        int newTankAddressIndex = clientCollection.indexOf(newTankAddress);
-        InetSocketAddress leftNeighborAddress = (InetSocketAddress) clientCollection.getLeftNeighorOf(newTankAddressIndex);
-        InetSocketAddress rightNeighborAddress = (InetSocketAddress) clientCollection.getRightNeighorOf(newTankAddressIndex);
+        int indexOfClient = clientCollection.indexOf(msg.getSender());
 
-        InetSocketAddress leftOfLeftNeighbor = (InetSocketAddress) clientCollection.getLeftNeighorOf(clientCollection.indexOf(leftNeighborAddress));
-        InetSocketAddress rightOfRightNeighbor = (InetSocketAddress) clientCollection.getRightNeighorOf(clientCollection.indexOf(rightNeighborAddress));
+        long date = System.currentTimeMillis();
+        if (indexOfClient == -1) {
+            String id = "tank" + counter;
+            counter++;
+
+            InetSocketAddress newTankAddress = msg.getSender();
+//      add tank to ClientCollection
+            clientCollection.add(id, newTankAddress, date);
+            int newTankAddressIndex = clientCollection.indexOf(newTankAddress);
+            InetSocketAddress leftNeighborAddress = (InetSocketAddress) clientCollection.getLeftNeighorOf(newTankAddressIndex);
+            InetSocketAddress rightNeighborAddress = (InetSocketAddress) clientCollection.getRightNeighorOf(newTankAddressIndex);
+
+            InetSocketAddress leftOfLeftNeighbor = (InetSocketAddress) clientCollection.getLeftNeighorOf(clientCollection.indexOf(leftNeighborAddress));
+            InetSocketAddress rightOfRightNeighbor = (InetSocketAddress) clientCollection.getRightNeighorOf(clientCollection.indexOf(rightNeighborAddress));
 
 //      send messages
-        if (clientCollection.size() == 1) {
-            endpoint.send(newTankAddress, new NeighborUpdate(newTankAddress, newTankAddress));
-            endpoint.send(newTankAddress, new Token());
+            if (clientCollection.size() == 1) {
+                endpoint.send(newTankAddress, new NeighborUpdate(newTankAddress, newTankAddress));
+                endpoint.send(newTankAddress, new Token());
+            } else {
+                endpoint.send(newTankAddress, new NeighborUpdate(leftNeighborAddress, rightNeighborAddress));
+                endpoint.send(leftNeighborAddress, new NeighborUpdate(leftOfLeftNeighbor, newTankAddress));
+                endpoint.send(rightNeighborAddress, new NeighborUpdate(newTankAddress, rightOfRightNeighbor));
+            }
+
+            endpoint.send(newTankAddress, new RegisterResponse(id, leaseTime));
         } else {
-            endpoint.send(newTankAddress, new NeighborUpdate(leftNeighborAddress, rightNeighborAddress));
-            endpoint.send(leftNeighborAddress, new NeighborUpdate(leftOfLeftNeighbor, newTankAddress));
-            endpoint.send(rightNeighborAddress, new NeighborUpdate(newTankAddress, rightOfRightNeighbor));
+            String id = clientCollection.updateClient(indexOfClient, date);
+            endpoint.send(msg.getSender(), new RegisterResponse(id, leaseTime));
         }
 
-        endpoint.send(newTankAddress, new RegisterResponse(id, 10));
+
     }
 
     public void deregister(Message msg) {

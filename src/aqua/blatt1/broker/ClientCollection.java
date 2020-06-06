@@ -13,9 +13,9 @@ public class ClientCollection<T> {
 	private class Client {
 		final String id;
 		final T client;
-		final Date registerTime;
+		final long registerTime;
 
-		Client(String id, T client, Date registerTime) {
+		Client(String id, T client, long registerTime) {
 			this.id = id;
 			this.client = client;
 			this.registerTime = registerTime;
@@ -28,7 +28,7 @@ public class ClientCollection<T> {
 		clients = new ArrayList<Client>();
 	}
 
-	public ClientCollection<T> add(String id, T client, Date registerTime) {
+	public ClientCollection<T> add(String id, T client, long registerTime) {
 		clients.add(new Client(id, client, registerTime));
 		return this;
 	}
@@ -68,4 +68,14 @@ public class ClientCollection<T> {
 		return index < clients.size() - 1 ? clients.get(index + 1).client : clients.get(0).client;
 	}
 
+	public String updateClient(int index, long date) {
+		Client client = clients.get(index);
+		clients.set(index, new Client(client.id, client.client, date));
+		return client.id;
+	}
+
+	public long getRegisterTime(int index) {
+		long registerDate = clients.get(index).registerTime;
+		return registerDate;
+	}
 }
