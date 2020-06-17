@@ -1,13 +1,15 @@
 package aqua.blatt1.broker;
 
+import aqua.blatt1.SecureEndpoint;
 import aqua.blatt1.common.Direction;
 import aqua.blatt1.common.msgtypes.*;
-import messaging.Endpoint;
 import messaging.Message;
 
+import javax.crypto.NoSuchPaddingException;
 import javax.swing.*;
 import java.net.InetSocketAddress;
-import java.util.Date;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
@@ -16,12 +18,12 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class Broker {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
         Broker broker = new Broker();
         broker.broker();
     }
 
-    Endpoint endpoint;
+    SecureEndpoint endpoint;
     ClientCollection clientCollection;
     int counter = 0;
     int NUMTHREADS = 5;
@@ -31,8 +33,8 @@ public class Broker {
     Timer timer = new Timer();
     long leaseTime = 10000;
 
-    public Broker() {
-        endpoint = new Endpoint(4711);
+    public Broker() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
+        endpoint = new SecureEndpoint(4711);
         clientCollection = new ClientCollection();
         executor = Executors.newFixedThreadPool(NUMTHREADS);
     }

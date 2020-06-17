@@ -1,7 +1,10 @@
 package aqua.blatt1.client;
 
 import java.net.InetSocketAddress;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 
+import aqua.blatt1.SecureEndpoint;
 import aqua.blatt1.common.Direction;
 import aqua.blatt1.common.msgtypes.*;
 import messaging.Endpoint;
@@ -9,11 +12,13 @@ import messaging.Message;
 import aqua.blatt1.common.FishModel;
 import aqua.blatt1.common.Properties;
 
-public class ClientCommunicator {
-    private final Endpoint endpoint;
+import javax.crypto.NoSuchPaddingException;
 
-    public ClientCommunicator() {
-        endpoint = new Endpoint();
+public class ClientCommunicator {
+    private final SecureEndpoint endpoint;
+
+    public ClientCommunicator() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
+        endpoint = new SecureEndpoint();
     }
 
     public class ClientForwarder {
