@@ -1,5 +1,6 @@
 package aqua.blatt1;
 
+import aqua.blatt1.common.msgtypes.KeyExchangeMessage;
 import messaging.Endpoint;
 import messaging.Message;
 
@@ -7,25 +8,35 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.net.*;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
+import java.security.*;
+import java.util.HashMap;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class SecureEndpoint extends Endpoint {
-    final String startString = "CAFEBABECAFEBABE";
-    SecretKeySpec secretKeySpec;
-    Cipher cipherAesEncrypt = Cipher.getInstance("AES");
-    Cipher cipherAesDecrypt = Cipher.getInstance("AES/ECB/NoPadding");
+    PrivateKey privateKey;
+    PublicKey publicKey;
+    Cipher cipherRsaEncrypt = Cipher.getInstance("RSA");
+    Cipher cipherRsaDecrypt = Cipher.getInstance("RSA");
     private final DatagramSocket socket;
+    ExecutorService executor;
+    Timer timer = new Timer();
+    HashMap<InetSocketAddress, PublicKey> publicKeyMap = new HashMap<InetSocketAddress, PublicKey>();
+    int NUMTHREADS = 5;
 
 
     public SecureEndpoint() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
-        this.secretKeySpec = new SecretKeySpec(startString.getBytes(), "AES");
-        this.cipherAesEncrypt.init(Cipher.ENCRYPT_MODE, secretKeySpec);
-        this.cipherAesDecrypt.init(Cipher.DECRYPT_MODE, secretKeySpec);
+        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+//        keyPairGenerator.initialize(1024);
+        KeyPair key = keyPairGenerator.generateKeyPair();
+        this.publicKey = key.getPublic();
+        this.privateKey = key.getPrivate();
+        cipherRsaDecrypt.init(Cipher.DECRYPT_MODE, privateKey);
+        executor = Executors.newFixedThreadPool(NUMTHREADS);
         try {
             this.socket = new DatagramSocket();
         } catch (SocketException var2) {
@@ -34,10 +45,13 @@ public class SecureEndpoint extends Endpoint {
     }
 
     public SecureEndpoint(int port) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
-//        super(port);
-        this.secretKeySpec = new SecretKeySpec(startString.getBytes(), "AES");
-        this.cipherAesEncrypt.init(Cipher.ENCRYPT_MODE, secretKeySpec);
-        this.cipherAesDecrypt.init(Cipher.DECRYPT_MODE, secretKeySpec);
+        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+//        keyPairGenerator.initialize(1024);
+        KeyPair key = keyPairGenerator.generateKeyPair();
+        this.publicKey = key.getPublic();
+        this.privateKey = key.getPrivate();
+        cipherRsaDecrypt.init(Cipher.DECRYPT_MODE, privateKey);
+        executor = Executors.newFixedThreadPool(NUMTHREADS);
         try {
             this.socket = new DatagramSocket(port);
         } catch (SocketException var2) {
@@ -47,85 +61,136 @@ public class SecureEndpoint extends Endpoint {
 
     @Override
     public void send(InetSocketAddress receiver, Serializable payload) {
+        System.out.println("Send außerhalb: " + receiver);
+        if (!publicKeyMap.containsKey(receiver)) {
+            keyExchangeMethod(receiver, true);
+            executor.execute(() -> {
+                timer.schedule(new TimerTask() {
+                    @Override
+                    public void run() {
+                        if (publicKeyMap.containsKey(receiver)) {
+                            System.out.println("Receiver Send in Thread: " + receiver);
+                            executeSend(receiver, payload);
+                            timer.cancel();
+                        }
+                    }
+                }, 0, 500);
+            });
+        } else {
+            executeSend(receiver, payload);
+        }
+    }
+
+    public void executeSend(InetSocketAddress receiver, Serializable payload) {
         try {
+            System.out.println("Execute Send");
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ObjectOutputStream oos = new ObjectOutputStream(baos);
             oos.writeObject(payload);
 
+            cipherRsaEncrypt.init(Cipher.ENCRYPT_MODE, publicKeyMap.get(receiver));
+
             byte[] bytes = baos.toByteArray();
-            byte[] cipherText = cipherAesEncrypt.doFinal(bytes);
+            byte[] cipherText = cipherRsaEncrypt.doFinal(bytes);
 
             DatagramPacket datagram = new DatagramPacket(cipherText, cipherText.length, receiver);
             this.socket.send(datagram);
         } catch (Exception var7) {
             throw new RuntimeException(var7);
         }
+    }
 
+    public void keyExchangeMethod(InetSocketAddress receiver, boolean tellMeYours) {
+        try {
+            System.out.println("KeyExchangeMethod");
+            KeyExchangeMessage keyExchangeMessage = new KeyExchangeMessage(publicKey, tellMeYours);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ObjectOutputStream oos = new ObjectOutputStream(baos);
+            oos.writeObject(keyExchangeMessage);
+            byte[] bytes = baos.toByteArray();
+
+            DatagramPacket datagram = new DatagramPacket(bytes, bytes.length, receiver);
+            this.socket.send(datagram);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
     public Message blockingReceive() {
         DatagramPacket datagram = new DatagramPacket(new byte[1024], 1024);
-
+        
         try {
             this.socket.receive(datagram);
-        } catch (Exception var3) {
-            throw new RuntimeException(var3);
-        }
-
-        try {
-            byte[] original = cipherAesDecrypt.doFinal(datagram.getData());
+            byte[] original = cipherRsaDecrypt.doFinal(datagram.getData());
             datagram.setData(original);
-        } catch (IllegalBlockSizeException | BadPaddingException e) {
+        } catch (IOException | BadPaddingException | IllegalBlockSizeException e) {
+            System.out.println("Exception");
+            datagram.setData(datagram.getData());
             e.printStackTrace();
         }
 
-        return readDatagram(datagram);
-    }
-
-    @Override
-    public Message nonBlockingReceive() {
-        DatagramPacket datagram = new DatagramPacket(new byte[1024], 1024);
-
+        Message message = readDatagram(datagram);
         try {
-            this.socket.setSoTimeout(1);
-        } catch (SocketException var7) {
+            if (message.getPayload() instanceof KeyExchangeMessage && !publicKeyMap.containsKey(message.getSender())) {
+                publicKeyMap.put(message.getSender(), ((KeyExchangeMessage) message.getPayload()).getPublicKey());
+//                publicKeyMap.forEach((key, value) -> System.out.println(key + " " + value));
+                System.out.println("Set Public Key");
+                if (((KeyExchangeMessage) message.getPayload()).isTellMeYours()) {
+                    keyExchangeMethod(message.getSender(), false);
+                }
+            }
+        } catch (Exception var7) {
             throw new RuntimeException(var7);
         }
 
-        boolean timeoutExpired;
-        try {
-            this.socket.receive(datagram);
-            timeoutExpired = false;
-        } catch (SocketTimeoutException var5) {
-            timeoutExpired = true;
-        } catch (IOException var6) {
-            throw new RuntimeException(var6);
-        }
-
-        try {
-            this.socket.setSoTimeout(0);
-        } catch (SocketException var4) {
-            throw new RuntimeException(var4);
-        }
-
-        try {
-            byte[] original = cipherAesDecrypt.doFinal(datagram.getData());
-            datagram.setData(original);
-        } catch (IllegalBlockSizeException | BadPaddingException e) {
-            e.printStackTrace();
-        }
-
-        return timeoutExpired ? null : this.readDatagram(datagram);
+        return message;
     }
 
     private Message readDatagram(DatagramPacket datagram) {
         try {
             ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(datagram.getData()));
-            return new Message((Serializable)ois.readObject(), (InetSocketAddress)datagram.getSocketAddress());
+            return new Message((Serializable) ois.readObject(), (InetSocketAddress) datagram.getSocketAddress());
         } catch (Exception var3) {
             throw new RuntimeException(var3);
         }
     }
+
+//    @Override
+//    public Message nonBlockingReceive() {
+//        DatagramPacket datagram = new DatagramPacket(new byte[1024], 1024);
+//        System.out.println("Test");
+//        try {
+//            this.socket.setSoTimeout(1);
+//        } catch (SocketException var7) {
+//            throw new RuntimeException(var7);
+//        }
+//
+//        boolean timeoutExpired;
+//        try {
+//            this.socket.receive(datagram);
+//            timeoutExpired = false;
+//        } catch (SocketTimeoutException var5) {
+//            timeoutExpired = true;
+//        } catch (IOException var6) {
+//            throw new RuntimeException(var6);
+//        }
+//
+//        try {
+//            this.socket.setSoTimeout(0);
+//        } catch (SocketException var4) {
+//            throw new RuntimeException(var4);
+//        }
+//
+//        try {
+//            byte[] original = cipherRsaDecrypt.doFinal(datagram.getData());
+//            datagram.setData(original);
+//        } catch (IllegalBlockSizeException | BadPaddingException e) {
+//            e.printStackTrace();
+//        }
+//
+//        return timeoutExpired ? null : this.readDatagram(datagram);
+//    }
+
 
 }
