@@ -18,6 +18,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class SecureEndpoint extends Endpoint {
+    KeyPairGenerator keyPairGenerator;
     PrivateKey privateKey;
     PublicKey publicKey;
     Cipher cipherRsaEncrypt = Cipher.getInstance("RSA");
@@ -30,8 +31,8 @@ public class SecureEndpoint extends Endpoint {
 
 
     public SecureEndpoint() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
-        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-//        keyPairGenerator.initialize(1024);
+        keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+        keyPairGenerator.initialize(1024);
         KeyPair key = keyPairGenerator.generateKeyPair();
         this.publicKey = key.getPublic();
         this.privateKey = key.getPrivate();
@@ -45,8 +46,8 @@ public class SecureEndpoint extends Endpoint {
     }
 
     public SecureEndpoint(int port) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
-        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-//        keyPairGenerator.initialize(1024);
+        keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+        keyPairGenerator.initialize(1024);
         KeyPair key = keyPairGenerator.generateKeyPair();
         this.publicKey = key.getPublic();
         this.privateKey = key.getPrivate();
@@ -61,7 +62,6 @@ public class SecureEndpoint extends Endpoint {
 
     @Override
     public void send(InetSocketAddress receiver, Serializable payload) {
-        System.out.println("Send außerhalb: " + receiver);
         if (!publicKeyMap.containsKey(receiver)) {
             keyExchangeMethod(receiver, true);
             executor.execute(() -> {
@@ -83,7 +83,6 @@ public class SecureEndpoint extends Endpoint {
 
     public void executeSend(InetSocketAddress receiver, Serializable payload) {
         try {
-            System.out.println("Execute Send");
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ObjectOutputStream oos = new ObjectOutputStream(baos);
             oos.writeObject(payload);
@@ -102,7 +101,6 @@ public class SecureEndpoint extends Endpoint {
 
     public void keyExchangeMethod(InetSocketAddress receiver, boolean tellMeYours) {
         try {
-            System.out.println("KeyExchangeMethod");
             KeyExchangeMessage keyExchangeMessage = new KeyExchangeMessage(publicKey, tellMeYours);
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ObjectOutputStream oos = new ObjectOutputStream(baos);
@@ -120,22 +118,34 @@ public class SecureEndpoint extends Endpoint {
     public Message blockingReceive() {
         DatagramPacket datagram = new DatagramPacket(new byte[1024], 1024);
         
+//        try {
+//            this.socket.receive(datagram);
+//            byte[] original = cipherRsaDecrypt.doFinal(datagram.getData());
+//            datagram.setData(original);
+//        } catch (IOException | BadPaddingException | IllegalBlockSizeException e) {
+//            datagram.setData(datagram.getData());
+//            e.printStackTrace();
+//        }
+
         try {
             this.socket.receive(datagram);
+        } catch (Exception var3) {
+            throw new RuntimeException(var3);
+        }
+
+        try {
             byte[] original = cipherRsaDecrypt.doFinal(datagram.getData());
             datagram.setData(original);
-        } catch (IOException | BadPaddingException | IllegalBlockSizeException e) {
-            System.out.println("Exception");
+        } catch (IllegalBlockSizeException | BadPaddingException e) {
             datagram.setData(datagram.getData());
             e.printStackTrace();
         }
 
-        Message message = readDatagram(datagram);
+        Message message =  readDatagram(datagram);
         try {
             if (message.getPayload() instanceof KeyExchangeMessage && !publicKeyMap.containsKey(message.getSender())) {
                 publicKeyMap.put(message.getSender(), ((KeyExchangeMessage) message.getPayload()).getPublicKey());
-//                publicKeyMap.forEach((key, value) -> System.out.println(key + " " + value));
-                System.out.println("Set Public Key");
+//               publicKeyMap.forEach((key, value) -> System.out.println(key + " " + value));
                 if (((KeyExchangeMessage) message.getPayload()).isTellMeYours()) {
                     keyExchangeMethod(message.getSender(), false);
                 }
