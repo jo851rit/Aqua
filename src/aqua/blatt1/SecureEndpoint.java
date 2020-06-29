@@ -32,7 +32,7 @@ public class SecureEndpoint extends Endpoint {
 
     public SecureEndpoint() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
         keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-        keyPairGenerator.initialize(1024);
+        keyPairGenerator.initialize(2048);
         KeyPair key = keyPairGenerator.generateKeyPair();
         this.publicKey = key.getPublic();
         this.privateKey = key.getPrivate();
@@ -47,7 +47,7 @@ public class SecureEndpoint extends Endpoint {
 
     public SecureEndpoint(int port) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
         keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-        keyPairGenerator.initialize(1024);
+        keyPairGenerator.initialize(2048);
         KeyPair key = keyPairGenerator.generateKeyPair();
         this.publicKey = key.getPublic();
         this.privateKey = key.getPrivate();
@@ -63,7 +63,7 @@ public class SecureEndpoint extends Endpoint {
     @Override
     public void send(InetSocketAddress receiver, Serializable payload) {
         if (!publicKeyMap.containsKey(receiver)) {
-            keyExchangeMethod(receiver, true);
+            keyExchangeMethod(receiver/*, true*/);
             executor.execute(() -> {
                 timer.schedule(new TimerTask() {
                     @Override
@@ -99,9 +99,9 @@ public class SecureEndpoint extends Endpoint {
         }
     }
 
-    public void keyExchangeMethod(InetSocketAddress receiver, boolean tellMeYours) {
+    public void keyExchangeMethod(InetSocketAddress receiver/*, boolean tellMeYours*/) {
         try {
-            KeyExchangeMessage keyExchangeMessage = new KeyExchangeMessage(publicKey, tellMeYours);
+            KeyExchangeMessage keyExchangeMessage = new KeyExchangeMessage(publicKey/*, tellMeYours*/);
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ObjectOutputStream oos = new ObjectOutputStream(baos);
             oos.writeObject(keyExchangeMessage);
@@ -117,15 +117,6 @@ public class SecureEndpoint extends Endpoint {
     @Override
     public Message blockingReceive() {
         DatagramPacket datagram = new DatagramPacket(new byte[1024], 1024);
-        
-//        try {
-//            this.socket.receive(datagram);
-//            byte[] original = cipherRsaDecrypt.doFinal(datagram.getData());
-//            datagram.setData(original);
-//        } catch (IOException | BadPaddingException | IllegalBlockSizeException e) {
-//            datagram.setData(datagram.getData());
-//            e.printStackTrace();
-//        }
 
         try {
             this.socket.receive(datagram);
@@ -135,25 +126,23 @@ public class SecureEndpoint extends Endpoint {
 
         try {
             byte[] original = cipherRsaDecrypt.doFinal(datagram.getData());
+
             datagram.setData(original);
         } catch (IllegalBlockSizeException | BadPaddingException e) {
             datagram.setData(datagram.getData());
-            e.printStackTrace();
+//            e.printStackTrace();
         }
 
-        Message message =  readDatagram(datagram);
+        Message message = readDatagram(datagram);
         try {
             if (message.getPayload() instanceof KeyExchangeMessage && !publicKeyMap.containsKey(message.getSender())) {
                 publicKeyMap.put(message.getSender(), ((KeyExchangeMessage) message.getPayload()).getPublicKey());
-//               publicKeyMap.forEach((key, value) -> System.out.println(key + " " + value));
-                if (((KeyExchangeMessage) message.getPayload()).isTellMeYours()) {
-                    keyExchangeMethod(message.getSender(), false);
-                }
+
+                keyExchangeMethod(message.getSender());
             }
         } catch (Exception var7) {
             throw new RuntimeException(var7);
         }
-
         return message;
     }
 
