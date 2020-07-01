@@ -1,6 +1,6 @@
 package aqua.blatt1.broker;
 
-import aqua.blatt1.SecureEndpoint;
+import aqua.blatt1.SecureEndpointLaura;
 import aqua.blatt1.common.Direction;
 import aqua.blatt1.common.msgtypes.*;
 import messaging.Message;
@@ -23,7 +23,7 @@ public class Broker {
         broker.broker();
     }
 
-    SecureEndpoint endpoint;
+    SecureEndpointLaura endpoint;
     ClientCollection clientCollection;
     int counter = 0;
     int NUMTHREADS = 5;
@@ -34,7 +34,7 @@ public class Broker {
     long leaseTime = 10000;
 
     public Broker() throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
-        endpoint = new SecureEndpoint(4711);
+        endpoint = new SecureEndpointLaura(4711);
         clientCollection = new ClientCollection();
         executor = Executors.newFixedThreadPool(NUMTHREADS);
     }
