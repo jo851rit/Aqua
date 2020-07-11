@@ -1,6 +1,7 @@
 package aqua.blatt1.client;
 
 import java.rmi.AlreadyBoundException;
+import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.*;
@@ -133,7 +134,7 @@ public class TankModel extends Observable implements Iterable<FishModel>, AquaCl
         }
     }
 
-    public synchronized void finish() throws RemoteException {
+    public synchronized void finish() throws RemoteException, NotBoundException {
         aquaBroker.deregister(id);
     }
 
@@ -287,7 +288,7 @@ public class TankModel extends Observable implements Iterable<FishModel>, AquaCl
         homeAgent.replace(fishId, currentTank);
     }
 
-    public void handleDeregister() throws RemoteException {
+    public void handleDeregister() throws RemoteException, NotBoundException {
         aquaBroker.deregister(this.id);
         System.exit(0);
     }

@@ -2,6 +2,7 @@ package aqua.blatt1.client;
 
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,7 +39,7 @@ public class AquaGui extends JFrame implements Runnable, Observer {
 			public void windowClosed(WindowEvent e) {
 				try {
 					tankModel.finish();
-				} catch (RemoteException remoteException) {
+				} catch (RemoteException | NotBoundException remoteException) {
 					remoteException.printStackTrace();
 				}
 				System.exit(0);

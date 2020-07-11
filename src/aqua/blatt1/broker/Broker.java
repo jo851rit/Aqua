@@ -6,6 +6,7 @@ import aqua.blatt1.SecureEndpointLaura;
 import aqua.blatt1.common.Properties;
 import aqua.blatt1.common.msgtypes.*;
 import java.rmi.AlreadyBoundException;
+import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
@@ -78,7 +79,10 @@ public class Broker implements AquaBroker {
 
     }
 
-    public void deregister(String id) throws RemoteException {
+    public void deregister(String id) throws RemoteException, NotBoundException {
+        Registry registry = LocateRegistry.getRegistry(Registry.REGISTRY_PORT);
+        registry.unbind(id);
+
         AquaClient leftNeighborAddress = (AquaClient) clientCollection.getLeftNeighorOf(clientCollection.indexOf(id));
         AquaClient rightNeighborAddress = (AquaClient) clientCollection.getRightNeighorOf(clientCollection.indexOf(id));
 
