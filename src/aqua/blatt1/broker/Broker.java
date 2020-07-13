@@ -5,6 +5,7 @@ import aqua.blatt1.AquaClient;
 import aqua.blatt1.SecureEndpointLaura;
 import aqua.blatt1.common.Properties;
 import aqua.blatt1.common.msgtypes.*;
+
 import java.rmi.AlreadyBoundException;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
@@ -68,7 +69,7 @@ public class Broker implements AquaBroker {
                 aquaClient.updateNeighbors(aquaClient, aquaClient);
                 aquaClient.receiveToken(new Token());
             } else {
-                aquaClient.updateNeighbors(leftNeighbor,rightNeighbor);
+                aquaClient.updateNeighbors(leftNeighbor, rightNeighbor);
                 leftNeighbor.updateNeighbors(leftOfLeftNeighbor, aquaClient);
                 rightNeighbor.updateNeighbors(aquaClient, rightOfRightNeighbor);
             }
@@ -105,7 +106,9 @@ public class Broker implements AquaBroker {
 
     public void handleNameResolutionRequest(String tankId, String id, AquaClient aquaClient) throws RemoteException {
         int indexOf = clientCollection.indexOf(tankId);
-        AquaClient tankAddress = (AquaClient) clientCollection.getClient(indexOf);
-        aquaClient.handleNameResolutionResponse(tankAddress, id, aquaClient);
+        if (indexOf != -1) {
+            AquaClient tankAddress = (AquaClient) clientCollection.getClient(indexOf);
+            aquaClient.handleNameResolutionResponse(tankAddress, id, aquaClient);
+        }
     }
 }
